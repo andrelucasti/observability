@@ -1,0 +1,78 @@
+alloy:
+  configMap:
+    create: true
+    content: |
+      discovery.kubernetes "local_pods" {
+        selectors {
+          field = "spec.nodeName=" + env("HOSTNAME")
+          role = "pod"
+        }
+        role = "pod"
+      }
+      discovery.process "all" {
+         join = discovery.kubernetes.local_pods.targets
+      }
+      discovery.relabel "java_pods" {
+        targets = discovery.process.all.targets
+        rule {
+          source_labels = ["__meta_process_exe"]
+          action = "keep"
+          regex = ".*/java$"
+        }
+        rule {
+          action = "drop"
+          regex = "Succeeded|Failed|Completed"
+          source_labels = ["__meta_kubernetes_pod_phase"]
+        }
+        rule {
+          action = "replace"
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label = "namespace"
+        }
+        rule {
+          action = "replace"
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label = "pod"
+        }
+        rule {
+          action = "replace"
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label = "node"
+        }
+        rule {
+          action = "replace"
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label = "container"
+        }
+        rule {
+          action = "replace"
+          regex = "(.*)@(.*)"
+          replacement = "java/${1}/${2}"
+          separator = "@"
+          source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+          target_label = "service_name"
+        }
+        rule {
+          action = "keep"
+          regex = "(java/ns1/.*)|(java/ns2/container-.*0)"
+          source_labels = ["service_name"]
+        }
+      }
+      
+      pyroscope.ebpf "instance" {
+        forward_to = [pyroscope.write.endpoint.receiver]
+        targets = discovery.kubernetes.local_pods.targets
+      }
+      pyroscope.write "endpoint" {
+        endpoint {
+          url = "http://pyroscope.pyroscope.svc.cluster.local.:4040"
+        }
+      }
+
+  securityContext:
+    privileged: true
+    runAsGroup: 0
+    runAsUser: 0
+
+controller:
+  hostPID: true

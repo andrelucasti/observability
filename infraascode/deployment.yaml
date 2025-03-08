@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    profiles.grafana.com/memory.scrape: "true"
+    profiles.grafana.com/memory.port: "8080"
+    profiles.grafana.com/cpu.scrape: "true"
+    profiles.grafana.com/cpu.port: "8080"
+  name: toilet
+  labels:
+    app: toilet
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: toilet
+  template:
+    metadata:
+      labels:
+        app: toilet
+    spec:
+      containers:
+        - name: toilet
+          image: andrelucastic/observability-java:1.0
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: pyroscope-java
+          env:
+          - name: spring.datasource.hikari.jdbcUrl
+            value: jdbc:postgresql://postgresql.postgres:5432/toilet
+          - name: spring.datasource.hikari.username
+            value: toilet
+          - name: spring.datasource.hikari.password
+            value: toilet
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "400Mi"
+              cpu: "200m"
+            limits:
+              memory: "800Mi"
+              cpu: "500m"
+
+
