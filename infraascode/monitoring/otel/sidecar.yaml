@@ -1,0 +1,44 @@
+
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: signoz-collector-sidecar
+spec:
+  mode: sidecar
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+          grpc:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'jvm-metrics'
+              scrape_interval: 10s
+              metrics_path: '/actuator/prometheus'
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_container_name]
+                  action: keep
+                  regex: true
+    processors:
+      batch:
+    exporters:
+      debug:
+        verbosity: detailed
+      otlp:
+        endpoint: http://signoz-otel-collector.signoz.svc.cluster.local:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [debug, otlp]
+        metrics:
+          receivers: [otlp, prometheus]
+          processors: [batch]
+          exporters: [debug, otlp]

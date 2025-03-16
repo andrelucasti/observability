@@ -11,74 +11,58 @@
 ### Setup
 - Create a k3d cluster
 ```bash
-   k3d cluster create -p "8000:30000@loadbalancer" --agents 2
+    k3d cluster create otel-demo --agents 3 --api-port 6550 -p "8080:80@loadbalancer"
 ```
 
+#### Install cert-manager (required by OpenTelemetry Operator)
+
+```bash
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.1/cert-manager.yaml
+    kubectl wait --for=condition=Available deployment --all -n cert-manager --timeout=2m
+```
+### Install OpenTelemetry Operator
+```bash
+    kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
+```
+
+### Install SigNoz
+```bash
+    kubectl create namespace signoz && \
+    helm repo add signoz https://signoz.io/helm-charts && \ 
+    helm --namespace signoz install signoz signoz/signoz && \   
+    helm --namespace signoz install -f monitoring/k8s-cluster.yaml signoz-k8s-infra signoz/k8s-infra 
+```
 ### Namespaces
 - Create a namespace for the application
 ```bash
-   kubectl create namespace toilet
+  kubectl create namespace toilet
 ```
 - Create a namespace for the postgresql
 ```bash
    kubectl create namespace postgres   
 ```
-
-- Create a namespace for grafana
-```bash
-   kubectl create namespace grafana
-```
-
-- Create a namespace for pyroscope
-```bash
-   kubectl create namespace pyroscope
-```
-### Install Grafana and Pyroscope 
-- Add grafana helm repository
-```bash
-  helm repo add grafana https://grafana.github.io/helm-charts && helm repo update
-```
-
-- Install pyroscope
-```bash
-   helm -n pyroscope-test install pyroscope grafana/pyroscope
-```
-- Install grafana
-```bash
-   helm upgrade -n grafana --install grafana grafana/grafana \
-  --set image.repository=grafana/grafana \
-  --set image.tag=main \
-  --set env.GF_INSTALL_PLUGINS=grafana-pyroscope-app \
-  --set env.GF_AUTH_ANONYMOUS_ENABLED=true \
-  --set env.GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
-  --set env.GF_DIAGNOSTICS_PROFILING_ENABLED=true \
-  --set env.GF_DIAGNOSTICS_PROFILING_ADDR=0.0.0.0 \
-  --set env.GF_DIAGNOSTICS_PROFILING_PORT=9094 \
-  --set-string 'podAnnotations.profiles\.grafana\.com/cpu\.scrape=true' \
-  --set-string 'podAnnotations.profiles\.grafana\.com/cpu\.port=9094' \
-  --set-string 'podAnnotations.profiles\.grafana\.com/memory\.scrape=true' \
-  --set-string 'podAnnotations.profiles\.grafana\.com/memory\.port=9094' \
-  --set-string 'podAnnotations.profiles\.grafana\.com/goroutine\.scrape=true' \
-  --set-string 'podAnnotations.profiles\.grafana\.com/goroutine\.port=9094'
-```
-
-- Add datasource to grafana
-```bash
- helm upgrade -n grafana --reuse-values grafana grafana/grafana \                                                                                                      1 ↵ andrelucas@MacBookAir
-     --values monitoring/grafana/datasources.yaml
-  
-```
-
 - Add postgresql helm repository
 ```bash
-   helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
+   helm repo add bitnami https://charts.bitnami.com/bitnami && \
+   helm repo update
 ```
 - Install postgresql
 ```bash
-   helm install postgresql bitnami/postgresql --version 15.5.28 --namespace postgres --set auth.database=toilet --set auth.password=toilet --set auth.username=toilet
+    helm install postgresql bitnami/postgresql \ 
+      --version 15.5.28 \ 
+      --namespace postgres \ 
+      --set auth.database=toilet \ 
+      --set auth.password=toilet \ 
+      --set auth.username=toilet
+```
+
+
+#### Adding otel-collector to the application
+```bash
+    kubectl -n toilet apply -f monitoring/otel
 ```
 
 - Install the application
 ```bash
-    kubectl -n toilet apply -f infraascode
+    kubectl -n toilet apply -f infraascode/app
 ```

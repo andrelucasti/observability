@@ -1,11 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    profiles.grafana.com/memory.scrape: "true"
-    profiles.grafana.com/memory.port: "8080"
-    profiles.grafana.com/cpu.scrape: "true"
-    profiles.grafana.com/cpu.port: "8080"
   name: toilet
   labels:
     app: toilet
@@ -18,14 +13,17 @@ spec:
     metadata:
       labels:
         app: toilet
+      annotations:
+        sidecar.opentelemetry.io/inject: "true"
+        instrumentation.opentelemetry.io/inject-java: "true"
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
     spec:
       containers:
         - name: toilet
           image: andrelucastic/observability-java:1.0
           imagePullPolicy: Always
-          envFrom:
-            - configMapRef:
-                name: pyroscope-java
           env:
           - name: spring.datasource.hikari.jdbcUrl
             value: jdbc:postgresql://postgresql.postgres:5432/toilet
